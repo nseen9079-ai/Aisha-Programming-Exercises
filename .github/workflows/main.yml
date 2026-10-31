@@ -1,0 +1,45 @@
+name: Build Three EXE Files
+
+on:
+workflow_dispatch:
+push:
+paths:
+- '.zip'
+- '.github/workflows/'
+
+jobs:
+build:
+runs-on: windows-latest
+
+steps:
+  - name: Download repository
+    uses: actions/checkout@v4
+
+  - name: Install .NET 8
+    uses: actions/setup-dotnet@v4
+    with:
+      dotnet-version: '8.0.x'
+
+  - name: Extract and build projects
+    shell: pwsh
+    run: |
+      $zip = Get-ChildItem -Path . -Filter "*.zip" -Recurse | Select-Object -First 1
+      if (-not $zip) { throw "ZIP file not found" }
+
+      Expand-Archive -Path $zip.FullName -DestinationPath extracted -Force
+
+      $projects = Get-ChildItem -Path extracted -Filter "*.csproj" -Recurse
+      if ($projects.Count -eq 0) { throw "No project files found" }
+
+      foreach ($project in $projects) {
+        $name = $project.BaseName
+        dotnet publish $project.FullName -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o "publish/$name"
+        if ($LASTEXITCODE -ne 0) { throw "Build failed: $name" }
+      }
+
+  - name: Upload EXE files
+    uses: actions/upload-artifact@v4
+    with:
+      name: Three-EXE-Files
+      path: publish/
+      if-no-files-found: error
