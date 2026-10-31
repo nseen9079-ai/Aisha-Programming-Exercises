@@ -6,34 +6,47 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET
+      - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Extract ZIP
+      - name: Extract ZIP File
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -Path . -Filter "*.zip" | Select-Object -First 1
-          if (-not $zip) { throw "ZIP not found" }
-          Expand-Archive -Path $zip.FullName -DestinationPath extracted -Force
+          $zip = Get-ChildItem -Path . -Filter "*.zip" -File | Select-Object -First 1
 
-      - name: Build projects
-        shell: pwsh
-        run: |
-          $projects = Get-ChildItem extracted -Filter "*.csproj" -Recurse
-          if ($projects.Count -ne 3) { throw "Expected 3 projects, found $($projects.Count)" }
-          foreach ($project in $projects) {
-            $name = $project.BaseName
-            dotnet publish $project.FullName -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o "publish/$name"
-            if ($LASTEXITCODE -ne 0) { throw "Build failed: $name" }
+          if ($null -eq $zip) {
+            throw "ZIP file not found"
           }
 
-      - name: Upload EXE files
+          Expand-Archive -Path $zip.FullName -DestinationPath "./extracted" -Force
+
+      - name: Build Three Projects
+        shell: pwsh
+        run: |
+          $projects = Get-ChildItem -Path "./extracted" -Filter "*.csproj" -Recurse
+
+          if ($projects.Count -ne 3) {
+            throw "Expected 3 projects, found $($projects.Count)"
+          }
+
+          foreach ($project in $projects) {
+            $name = $project.BaseName
+
+            dotnet publish $project.FullName -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o "./publish/$name"
+
+            if ($LASTEXITCODE -ne 0) {
+              throw "Build failed: $name"
+            }
+          }
+
+      - name: Upload EXE Files
         uses: actions/upload-artifact@v4
         with:
           name: Three-EXE-Files
